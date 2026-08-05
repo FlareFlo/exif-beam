@@ -1,0 +1,2 @@
+- Power/Battery level watchdog
+- I2C bus power watchdog
