@@ -1,14 +1,19 @@
 use core::cell::LazyCell;
 use core::ops::DerefMut;
+use core::sync::atomic::{AtomicU8, Ordering};
 use axp2101_dd::{Axp2101Async, AxpInterface, LdoId};
 use axp2101_dd::LdoId::{Aldo1, Aldo4, Bldo2};
 use critical_section::Mutex;
+use embassy_futures::select::Either;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_time::{Duration, Timer};
 use esp_hal::{i2c::master::{Config as I2cConfig, I2c}, peripherals::I2C0, Async, i2c};
 
 const GPS_LDO: LdoId = Aldo4;
 const AUX_LDO: LdoId = Aldo1;
+
+static BAT: AtomicU8 = AtomicU8::new(0);
 
 #[derive(Debug)]
 pub enum PmicCommand {
@@ -28,30 +33,41 @@ pub async fn run_power_management(
 	pmic.set_ldo_voltage_mv(AUX_LDO, 3300).await.unwrap();
 	pmic.set_ldo_voltage_mv(GPS_LDO, 3300).await.unwrap();
 
-	if let Ok(_) = pmic.set_ldo_voltage_mv(Bldo2, 3300).await {
-		let _ = pmic.set_ldo_enable(Bldo2, true).await;
-		defmt::info!("Brute-forced BLDO2 (External Header) to 3.3V ON");
-	}
-
 	loop {
-		let cmd = receiver.receive().await;
+		let cmd = embassy_futures::select::select(
+			receiver.receive(),
+			Timer::after(Duration::from_secs(10)),
+		).await;
 		match cmd {
-			PmicCommand::EnableGps(enable) => {
-				if let Err(e) = pmic.set_ldo_enable(GPS_LDO, enable).await {
-					defmt::error!("Failed to update GPS power: {:?}", defmt::Debug2Format(&e));
-				} else {
-					defmt::info!("GPS power rail state changed: {}", enable);
+			Either::First(cmd) => {
+				match cmd {
+					PmicCommand::EnableGps(enable) => {
+						if let Err(e) = pmic.set_ldo_enable(GPS_LDO, enable).await {
+							defmt::error!("Failed to update GPS power: {:?}", defmt::Debug2Format(&e));
+						} else {
+							defmt::info!("GPS power rail state changed: {}", enable);
+						}
+					}
+					PmicCommand::EnableAux(enable) => {
+						if let Err(e) = pmic.set_ldo_enable(AUX_LDO, enable).await {
+							defmt::error!("Failed to update AUX power: {:?}", defmt::Debug2Format(&e));
+						} else {
+							defmt::info!("AUX power rail state changed: {}", enable);
+						}
+					}
 				}
 			}
-			PmicCommand::EnableAux(enable) => {
-				if let Err(e) = pmic.set_ldo_enable(AUX_LDO, enable).await {
-					defmt::error!("Failed to update AUX power: {:?}", defmt::Debug2Format(&e));
-				} else {
-					defmt::info!("AUX power rail state changed: {}", enable);
+			Either::Second(_) => {
+				if let Ok(power) = pmic.get_battery_level().await {
+					BAT.store(power, Ordering::Relaxed);
 				}
 			}
 		}
 	}
+}
+
+pub fn get_battery_level() -> u8 {
+	BAT.load(Ordering::Relaxed)
 }
 
 pub async fn power_up_gps() {

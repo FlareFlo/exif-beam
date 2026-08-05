@@ -1,14 +1,41 @@
+use embassy_sync::mutex::Mutex;
+use core::cell::RefCell;
 use defmt::{error, info, debug, Debug2Format};
+use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_time::{Duration, Timer};
+use embedded_hal_compat::Reverse;
 use embedded_io_async::Write;
-use esp_hal::{uart, Async};
+use esp_hal::{uart, Async, Blocking};
+use esp_hal::i2c::master::I2c;
 use esp_hal::uart::Uart;
 use heapless::Vec;
+use static_cell::StaticCell;
 use ublox::{AnyPacketRef, proto31::Proto31};
 use ublox::cfg_val::CfgVal;
 use ublox::packets::cfg_val::{CfgLayerSet, CfgValSetBuilder};
 
 const BAUDRATE_HI: u32 = 115200;
+
+pub static GPS_STATE: Mutex<CriticalSectionRawMutex, GpsState> = Mutex::new(GpsState::default());
+
+#[derive(Debug)]
+pub struct GpsState {
+	pub lat: f64,
+	pub lon: f64,
+	pub sats: u8,
+	pub hdop: f32,
+}
+
+impl GpsState {
+	pub const fn default() -> Self {
+		Self {
+			lat: 0.0,
+			lon: 0.0,
+			sats: 0,
+			hdop: 0.0,
+		}
+	}
+}
 
 #[embassy_executor::task]
 pub async fn run_gps(mut uart: Uart<'static, Async>) {
@@ -59,13 +86,11 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 							if let Ok(sentence_str) = core::str::from_utf8(msg.data) {
 								match nmea_state.parse(sentence_str) {
 									Ok(_) => {
-										info!(
-                                            "GPS State Update -> Lat: {:?}, Lon: {:?}, Alt: {:?}m, Fix: {:?}",
-                                            nmea_state.latitude,
-                                            nmea_state.longitude,
-                                            nmea_state.altitude,
-                                            nmea_state.fix_type
-                                        );
+										let mut s = GPS_STATE.lock().await;
+										s.lat = nmea_state.latitude().unwrap_or_default() as _;
+										s.lon = nmea_state.longitude().unwrap_or_default() as _;
+										s.sats = nmea_state.satellites().len() as u8;
+										drop(s);
 									}
 									Err(_e) => {
 										debug!("Skipping proprietary or unhandled NMEA sentence");

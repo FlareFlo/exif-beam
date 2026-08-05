@@ -6,10 +6,13 @@ use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
 use core::cmp::min;
 use defmt::info;
+use embassy_futures::select::select;
+use embassy_futures::yield_now;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::Drawable;
 use embassy_sync::blocking_mutex::Mutex;
+use embassy_sync::signal::Signal;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::image::{Image, ImageRaw};
 use embedded_graphics::mono_font::{MonoFont};
@@ -25,10 +28,10 @@ use esp_hal::{Async, Blocking};
 use esp_hal::i2c::master::I2c;
 use sh1106::Builder;
 use sh1106::mode::GraphicsMode;
-use ssd1306::{I2CDisplayInterface, Ssd1306};
-use ssd1306::rotation::DisplayRotation;
-use ssd1306::size::DisplaySize128x64;
-use ssd1306::mode::DisplayConfig;
+use crate::gps::GPS_STATE;
+use crate::power_management::get_battery_level;
+
+pub static DISPLAY_SIGNAL: Signal<CriticalSectionRawMutex, DisplayState> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn drive_display(bus_ref: &'static Mutex<NoopRawMutex, RefCell<Reverse<I2c<'static, Blocking>>>>) {
@@ -42,10 +45,19 @@ pub async fn drive_display(bus_ref: &'static Mutex<NoopRawMutex, RefCell<Reverse
 	display.clear();
 	display.flush().unwrap();
 
+	let mut state = DisplayState::default();
 	loop {
-		draw_status_display(&mut display, &DisplayState::default());
+		let gps = GPS_STATE.lock().await;
+		state.sats = gps.sats;
+		state.lat = gps.lat;
+		state.lon = gps.lon;
+		drop(gps);
+
+		state.bat = get_battery_level();
+		draw_status_display(&mut display, &state);
+		yield_now().await;
 		display.flush().unwrap();
-		Timer::after(Duration::from_secs(1)).await;
+		select(Timer::after(Duration::from_secs(1)), DISPLAY_SIGNAL.wait()).await;
 	}
 }
 
@@ -58,6 +70,7 @@ pub struct DisplayState {
 	pub lon: f64,
 	pub sats: u8,
 	pub hdop: f32,
+	pub bat: u8,
 }
 
 impl DisplayState {
@@ -132,6 +145,7 @@ where
 		.unwrap();
 
 	Image::new(&if local_instead_of_utc {LOC_90DEG } else { UTC_90DEG }, Point::new(0, 21)).draw(display).unwrap();
+	Text::new(&heapless::format!(5; "{}%", state.bat).unwrap(), Point::new(0, 40), TXT.font(&FONT_6X13_BOLD).build()).draw(display).unwrap();
 	match state.hdop {
 		0.1..2.0 => {
 			draw_16_16("EXC", "FIX", Point::new(54,0), BoxLevel::Info, display, blink);

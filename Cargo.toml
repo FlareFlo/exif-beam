@@ -27,6 +27,7 @@ bt-hci = "0.8.0"
 embassy-executor = { version = "0.10.0", features = ["defmt"] }
 embassy-sync = "0.8.0"
 embassy-time = { version = "0.5.0", features = ["defmt"] }
+embassy-futures = "0.1.2"
 embassy-embedded-hal = "0.6.0"
 embedded-io = { version = "0.7.1", features = ["defmt"] }
 embedded-io-async = { version = "0.7.0", features = ["defmt"] }
@@ -60,7 +61,7 @@ nmea = {version = "0.7.0", default-features = false, features = ["GNSS", "defmt-
 
 # Hardware peripherals
 axp2101-dd = "0.2.3" # PMU
-sh1106 = "0.5.0" # Display
+sh1106 = "0.5.0"# Display
 
 [dev-dependencies]
 embedded-test = { version = "0.7.1", features = [
