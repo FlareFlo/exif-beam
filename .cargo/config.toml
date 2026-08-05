@@ -1,6 +1,6 @@
 [target.xtensa-esp32s3-none-elf]
-runner = "probe-rs run --chip=esp32s3 --speed 20000 --preverify --always-print-stacktrace --no-location"
-#runner = "espflash flash --monitor --baud 921600" # Alternative runner, skips the slower JTAG path
+#runner = "probe-rs run --chip=esp32s3 --speed 20000 --preverify --always-print-stacktrace --no-location"
+runner = "espflash flash --monitor --baud 115200 --log-format=defmt" # Alternative runner, skips the slower JTAG path
 
 [env]
 DEFMT_LOG="info"

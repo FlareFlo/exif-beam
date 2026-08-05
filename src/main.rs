@@ -28,7 +28,6 @@ use esp_hal::i2c::master::I2c;
 use esp_hal::i2c;
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
-use panic_rtt_target as _;
 use trouble_host::prelude::*;
 use embedded_hal_compat::ReverseCompat;
 use esp_hal::time::Rate;
@@ -38,6 +37,10 @@ use crate::power_management::{power_up_aux, power_up_gps, run_power_management};
 use crate::status_display::drive_display;
 
 extern crate alloc;
+
+use esp_println as _; // Enable for espflash
+use esp_backtrace as _; // Enable for espflash
+// use panic_rtt_target as _; // Enable for probe-rs
 
 const CONNECTIONS_MAX: usize = 1;
 const L2CAP_CHANNELS_MAX: usize = 1;
@@ -56,7 +59,7 @@ async fn main(spawner: Spawner) -> ! {
     // generator version: 1.3.0
     // generator parameters: --chip esp32s3 -o stack-smashing-protection -o unstable-hal -o embassy -o esp32s3-wroom-1-octal-psram -o probe-rs -o defmt -o panic-rtt-target -o embedded-test -o esp -o alloc -o ble-trouble
 
-    rtt_target::rtt_init_defmt!();
+    // rtt_target::rtt_init_defmt!(); // Enable for probe-rs
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);

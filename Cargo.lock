@@ -1019,6 +1019,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp-backtrace"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37950e24b2dfd98f1581102d1798281d4d9547af881e6bffc2c2b534c026ec8f"
+dependencies = [
+ "cfg-if",
+ "defmt 1.1.1",
+ "document-features",
+ "esp-config",
+ "esp-metadata-generated",
+ "esp-println",
+ "heapless 0.9.3",
+ "riscv",
+ "semihosting",
+ "xtensa-lx",
+]
+
+[[package]]
 name = "esp-bootloader-esp-idf"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1145,6 +1163,20 @@ dependencies = [
  "esp-sync",
  "esp-wifi-sys-esp32s3",
  "esp32s3",
+]
+
+[[package]]
+name = "esp-println"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42dee1e9ac7c3539bf6464db1707b0edd7557168f98278cf3c84fe70e63c6ce6"
+dependencies = [
+ "defmt 1.1.1",
+ "document-features",
+ "esp-metadata-generated",
+ "esp-sync",
+ "log",
+ "portable-atomic",
 ]
 
 [[package]]
@@ -1459,15 +1491,15 @@ dependencies = [
  "embedded-io-async 0.7.0",
  "embedded-test",
  "esp-alloc",
+ "esp-backtrace",
  "esp-bootloader-esp-idf",
  "esp-hal",
+ "esp-println",
  "esp-radio",
  "esp-rtos",
  "heapless 0.9.3",
  "nmea",
  "oled_async",
- "panic-rtt-target",
- "rtt-target",
  "static_cell",
  "trouble-host",
  "ublox",
@@ -2027,18 +2059,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
-name = "panic-rtt-target"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8116ffce1f89818647b84fba66d16cfdf3c0bee3c9320e606588d3e7415ce7"
-dependencies = [
- "critical-section",
- "defmt 0.3.100",
- "portable-atomic",
- "rtt-target",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2290,18 +2310,6 @@ dependencies = [
  "const-default",
  "libc",
  "rustversion",
-]
-
-[[package]]
-name = "rtt-target"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7afed1f4302eeba88c601636cf2c554c45e1cbb464bab44c6012bab0e71473c"
-dependencies = [
- "critical-section",
- "defmt 0.3.100",
- "portable-atomic",
- "ufmt-write",
 ]
 
 [[package]]
