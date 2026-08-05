@@ -1,6 +1,7 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use core::cell::RefCell;
+use chrono::{DateTime, NaiveDate, NaiveTime};
 use defmt::{error, info, debug, Debug2Format};
 use embassy_time::{Duration, Timer};
 use embedded_hal_compat::Reverse;
@@ -24,6 +25,8 @@ pub struct GpsState {
 	pub lon: f64,
 	pub sats: u8,
 	pub hdop: f32,
+	pub time: NaiveTime,
+	pub date: NaiveDate,
 }
 
 impl GpsState {
@@ -33,6 +36,8 @@ impl GpsState {
 			lon: 0.0,
 			sats: 0,
 			hdop: 0.0,
+			time: NaiveTime::from_hms_milli_opt(0,0,0,0).unwrap(),
+			date: NaiveDate::from_epoch_days(0).unwrap(),
 		}
 	}
 }
@@ -90,6 +95,8 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 										s.lat = nmea_state.latitude().unwrap_or_default() as _;
 										s.lon = nmea_state.longitude().unwrap_or_default() as _;
 										s.sats = nmea_state.satellites().len() as u8;
+										s.time = nmea_state.fix_timestamp().unwrap_or_default();
+										s.date = nmea_state.fix_date.unwrap_or_default();
 										drop(s);
 									}
 									Err(_e) => {

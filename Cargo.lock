@@ -1478,7 +1478,6 @@ dependencies = [
  "chrono",
  "critical-section",
  "defmt 1.1.1",
- "display-interface",
  "display-interface-i2c",
  "embassy-embedded-hal",
  "embassy-executor",
