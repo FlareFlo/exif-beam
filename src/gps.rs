@@ -1,7 +1,14 @@
 use defmt::{error, info, debug, Debug2Format};
-use esp_hal::Async;
+use embassy_time::{Duration, Timer};
+use embedded_io_async::Write;
+use esp_hal::{uart, Async};
 use esp_hal::uart::Uart;
+use heapless::Vec;
 use ublox::{AnyPacketRef, proto31::Proto31};
+use ublox::cfg_val::CfgVal;
+use ublox::packets::cfg_val::{CfgLayerSet, CfgValSetBuilder};
+
+const BAUDRATE_HI: u32 = 115200;
 
 #[embassy_executor::task]
 pub async fn run_gps(mut uart: Uart<'static, Async>) {
@@ -9,6 +16,20 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 	let mut parser = ublox::ParserBuilder::new()
 		.with_protocol::<Proto31>()
 		.with_fixed_buffer::<1024>();
+
+	// Reconfigure baudrate
+	let mut config: Vec<u8, 32> = Vec::new();
+	CfgValSetBuilder {
+		version: 1,
+		layers: CfgLayerSet::RAM,
+		reserved1: 0,
+		cfg_data: &[CfgVal::Uart1Baudrate(BAUDRATE_HI)]
+	}.extend_to(&mut config);
+	uart.write_all(config.as_slice()).await.unwrap();
+	uart.flush_async().await.unwrap();
+	Timer::after(Duration::from_millis(50)).await;
+	uart.apply_config(&uart::Config::default().with_baudrate(BAUDRATE_HI)).unwrap();
+	Timer::after(Duration::from_millis(50)).await;
 
 	let mut nmea_state = nmea::Nmea::default();
 

@@ -41,6 +41,7 @@ esp-radio = { version = "0.18.0", features = [
 panic-rtt-target = { version = "0.2.0", features = ["defmt"] }
 rtt-target = { version = "0.6.2", features = ["defmt"] }
 trouble-host = { version = "0.6.0", features = ["gatt"] }
+heapless = "0.9.3"
 
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
