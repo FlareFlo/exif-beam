@@ -61,7 +61,9 @@ nmea = {version = "0.7.0", default-features = false, features = ["GNSS", "defmt-
 
 # Hardware peripherals
 axp2101-dd = "0.2.3" # PMU
-sh1106 = "0.5.0"# Display
+oled_async = { git = "https://github.com/techmccat/sh1106.git", branch = "master"} # Display
+display-interface = "0.5"
+display-interface-i2c = "0.5"
 
 [dev-dependencies]
 embedded-test = { version = "0.7.1", features = [

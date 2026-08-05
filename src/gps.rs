@@ -1,7 +1,7 @@
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use core::cell::RefCell;
 use defmt::{error, info, debug, Debug2Format};
-use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_time::{Duration, Timer};
 use embedded_hal_compat::Reverse;
 use embedded_io_async::Write;

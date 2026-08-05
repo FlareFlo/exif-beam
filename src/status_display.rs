@@ -1,6 +1,11 @@
+use embassy_sync::mutex::Mutex;
+use display_interface_i2c::I2CInterface;
+use oled_async::displays::sh1106::Sh1106_128_64;
+use oled_async::Builder;
+use oled_async::prelude::GraphicsMode;
 use embedded_hal_compat::{ForwardCompat, Reverse};
 use core::cell::RefCell;
-use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
+use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
@@ -8,10 +13,9 @@ use core::cmp::min;
 use defmt::info;
 use embassy_futures::select::select;
 use embassy_futures::yield_now;
-use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
+use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::Drawable;
-use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::signal::Signal;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::image::{Image, ImageRaw};
@@ -26,24 +30,24 @@ use embedded_graphics::text::{Alignment, Baseline, TextStyleBuilder};
 use embedded_graphics::text::Text;
 use esp_hal::{Async, Blocking};
 use esp_hal::i2c::master::I2c;
-use sh1106::Builder;
-use sh1106::mode::GraphicsMode;
+use oled_async::displayrotation::DisplayRotation;
 use crate::gps::GPS_STATE;
 use crate::power_management::get_battery_level;
 
 pub static DISPLAY_SIGNAL: Signal<CriticalSectionRawMutex, DisplayState> = Signal::new();
 
 #[embassy_executor::task]
-pub async fn drive_display(bus_ref: &'static Mutex<NoopRawMutex, RefCell<Reverse<I2c<'static, Blocking>>>>) {
-	let i2c_dev = I2cDevice::new(bus_ref);
-
-	let mut display: GraphicsMode<_> = Builder::new()
-		.with_i2c_addr(0x3D)
-		.connect_i2c(i2c_dev)
+pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<'static, Async>>) {
+	let i2cd = I2cDevice::new(bus_ref);
+	let interface = I2CInterface::new(i2cd, 0x3D, 0x40);
+	let mut display: GraphicsMode<_, _> = Builder::new(Sh1106_128_64 {})
+		.with_rotation(DisplayRotation::Rotate0)
+		.connect(interface)
 		.into();
-	display.init().unwrap();
+
+	display.init().await.unwrap();
 	display.clear();
-	display.flush().unwrap();
+	display.flush().await.unwrap();
 
 	let mut state = DisplayState::default();
 	loop {
@@ -56,7 +60,7 @@ pub async fn drive_display(bus_ref: &'static Mutex<NoopRawMutex, RefCell<Reverse
 		state.bat = get_battery_level();
 		draw_status_display(&mut display, &state);
 		yield_now().await;
-		display.flush().unwrap();
+		display.flush().await.unwrap();
 		select(Timer::after(Duration::from_secs(1)), DISPLAY_SIGNAL.wait()).await;
 	}
 }
