@@ -1396,6 +1396,7 @@ dependencies = [
  "esp-hal",
  "esp-radio",
  "esp-rtos",
+ "heapless 0.9.3",
  "nmea",
  "panic-rtt-target",
  "rtt-target",
