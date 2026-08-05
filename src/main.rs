@@ -13,6 +13,7 @@
 mod gps;
 mod power_management;
 mod status_display;
+mod tz_data;
 
 use embassy_sync::mutex::Mutex;
 use embedded_hal_compat::Reverse;

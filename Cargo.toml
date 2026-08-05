@@ -72,6 +72,13 @@ axp2101-dd = "0.2.3" # PMU
 oled_async = { git = "https://github.com/techmccat/sh1106.git", branch = "master"} # Display
 display-interface-i2c = "0.5"
 
+# Timezone stuff
+# Spatial: Drop historical borders, use grid compression
+trtz = { version = "0.1.1", default-features = false, features = ["variant-now", "grid-scale-4"] }
+
+# Temporal Database: Embedded IANA tables
+tzdb = { version = "0.7.3", default-features = false }
+
 [dev-dependencies]
 embedded-test = { version = "0.7.1", features = [
   "defmt",

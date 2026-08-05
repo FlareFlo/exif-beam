@@ -1,3 +1,4 @@
+use crate::tz_data::get_local_offset_seconds;
 use embassy_sync::mutex::Mutex;
 use display_interface_i2c::I2CInterface;
 use oled_async::displays::sh1106::Sh1106_128_64;
@@ -6,11 +7,11 @@ use oled_async::prelude::GraphicsMode;
 use embedded_hal_compat::{ForwardCompat, Reverse};
 use core::cell::RefCell;
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, Utc};
 use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
 use core::cmp::min;
-use defmt::info;
+use defmt::{info, Debug2Format};
 use embassy_futures::select::select;
 use embassy_futures::yield_now;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex};
@@ -50,6 +51,7 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	display.flush().await.unwrap();
 
 	let mut state = DisplayState::default();
+	let mut offset = None;
 	loop {
 		let gps = GPS_STATE.lock().await;
 		state.sats = gps.sats;
@@ -59,7 +61,12 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 		state.time = gps.time;
 		state.hdop = gps.hdop;
 		drop(gps);
-
+		let dt = NaiveDateTime::new(state.date, state.time);
+		if offset.is_none() && state.date != NaiveDate::from_epoch_days(0).unwrap() {
+			offset = Some(get_local_offset_seconds(56.0, 10.0, dt.and_utc().timestamp()).unwrap());
+			let dtoffs = dt.and_utc().checked_add_signed(TimeDelta::from_std(core::time::Duration::from_secs(offset.unwrap() as _)).unwrap()).unwrap();
+			info!("{}", Debug2Format(&dtoffs));
+		}
 		state.bat = get_battery_level();
 		draw_status_display(&mut display, &state);
 		yield_now().await;
