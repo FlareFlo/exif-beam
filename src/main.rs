@@ -7,17 +7,25 @@
 )]
 #![deny(clippy::large_stack_frames)]
 #![deny(clippy::disallowed_types, reason = "Use allocator_api2")]
+// Its not that deep.
+#![allow(unused_imports)]
 
-use core::hint::black_box;
+mod gps;
+mod power_management;
+
 use bt_hci::controller::ExternalController;
 use defmt::{info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
+use esp_hal::i2c::master::I2c;
+use esp_hal::i2c;
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
 use trouble_host::prelude::*;
+use crate::gps::run_gps;
+use crate::power_management::{power_up_gps, run_power_management};
 
 extern crate alloc;
 
@@ -64,7 +72,6 @@ async fn main(spawner: Spawner) -> ! {
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
     // Initialize the PSRAM and also add it to the heap
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
-    let mut testvec: alloc::vec::Vec<u8> = alloc::vec::Vec::with_capacity(73744 * 2);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let sw_interrupt =
@@ -72,8 +79,6 @@ async fn main(spawner: Spawner) -> ! {
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
     info!("Embassy initialized!");
-    testvec.push(black_box(0));
-    info!("test {}", testvec.as_ptr());
 
     // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
     let transport = BleConnector::new(peripherals.BT, Default::default()).unwrap();
@@ -82,13 +87,29 @@ async fn main(spawner: Spawner) -> ! {
         HostResources::new();
     let _stack = trouble_host::new(ble_controller, &mut resources);
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
+    let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600)).unwrap()
+        .with_rx(peripherals.GPIO9)
+        .with_tx(peripherals.GPIO8)
+        .into_async();
+
+    let i2c_bus0 = I2c::new(peripherals.I2C0, i2c::master::Config::default())
+        .unwrap()
+        .with_sda(peripherals.GPIO17)
+        .with_scl(peripherals.GPIO18)
+        .into_async();
+
+    let i2c_bus1 = I2c::new(peripherals.I2C1, i2c::master::Config::default())
+        .unwrap()
+        .with_sda(peripherals.GPIO42)
+        .with_scl(peripherals.GPIO41)
+        .into_async();
+
+
+    spawner.spawn(run_gps(gps_uart).unwrap());
+    spawner.spawn(run_power_management(i2c_bus1).unwrap());
+    power_up_gps().await;
 
     loop {
-        info!("Hello world!");
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after(Duration::from_secs(1000)).await;
     }
-
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples
 }
