@@ -1,2 +1,4 @@
 - Power/Battery level watchdog
 - I2C bus power watchdog
+- Add TZ map https://github.com/evansiroky/timezone-boundary-builder
+- Add spatial map
