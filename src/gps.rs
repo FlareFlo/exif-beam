@@ -97,6 +97,7 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 										s.sats = nmea_state.satellites().len() as u8;
 										s.time = nmea_state.fix_timestamp().unwrap_or_default();
 										s.date = nmea_state.fix_date.unwrap_or_default();
+										s.hdop = nmea_state.hdop().unwrap_or_default();
 										drop(s);
 									}
 									Err(_e) => {

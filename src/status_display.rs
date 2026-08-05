@@ -57,6 +57,7 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 		state.lon = gps.lon;
 		state.date = gps.date;
 		state.time = gps.time;
+		state.hdop = gps.hdop;
 		drop(gps);
 
 		state.bat = get_battery_level();
