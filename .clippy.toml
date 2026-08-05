@@ -1,0 +1,7 @@
+stack-size-threshold = 1024
+
+disallowed-types = [
+    { path = "alloc::vec::Vec", reason = "Use allocator_api2 to explicitly force allocations into the 8MB PSRAM pool." },
+    { path = "alloc::string::String", reason = "Use allocator_api2 to explicitly force allocations into the 8MB PSRAM pool." },
+    { path = "alloc::boxed::Box", reason = "Use allocator_api2 to explicitly force allocations into the 8MB PSRAM pool." }
+]
