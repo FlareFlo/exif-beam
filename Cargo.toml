@@ -27,6 +27,7 @@ bt-hci = "0.8.0"
 embassy-executor = { version = "0.10.0", features = ["defmt"] }
 embassy-sync = "0.8.0"
 embassy-time = { version = "0.5.0", features = ["defmt"] }
+embassy-embedded-hal = "0.6.0"
 embedded-io = { version = "0.7.1", features = ["defmt"] }
 embedded-io-async = { version = "0.7.0", features = ["defmt"] }
 esp-alloc = { version = "0.10.0", features = ["defmt"] }
@@ -41,10 +42,17 @@ esp-radio = { version = "0.18.0", features = [
 panic-rtt-target = { version = "0.2.0", features = ["defmt"] }
 rtt-target = { version = "0.6.2", features = ["defmt"] }
 trouble-host = { version = "0.6.0", features = ["gatt"] }
-heapless = "0.9.3"
 
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
+
+# Extra
+heapless = "0.9.3"
+chrono = { version = "0.4.43", default-features = false }
+embedded-hal-compat = "0.13.0"
+
+# Graphics
+embedded-graphics = "0.8.2"
 
 # Protocol crates
 ublox = { version = "0.10", default-features = false, features = ["ubx_proto31", "alloc"] }
@@ -52,6 +60,7 @@ nmea = {version = "0.7.0", default-features = false, features = ["GNSS", "defmt-
 
 # Hardware peripherals
 axp2101-dd = "0.2.3" # PMU
+sh1106 = "0.5.0" # Display
 
 [dev-dependencies]
 embedded-test = { version = "0.7.1", features = [

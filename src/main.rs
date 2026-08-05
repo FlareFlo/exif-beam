@@ -12,8 +12,13 @@
 
 mod gps;
 mod power_management;
+mod status_display;
 
+use embedded_hal_compat::Reverse;
+use esp_hal::Blocking;
+use core::cell::RefCell;
 use bt_hci::controller::ExternalController;
+use critical_section::Mutex;
 use defmt::{info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -24,14 +29,20 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
 use trouble_host::prelude::*;
+use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
+use embedded_hal_compat::ReverseCompat;
+use esp_hal::time::Rate;
+use static_cell::StaticCell;
 use crate::gps::run_gps;
-use crate::power_management::{power_up_gps, run_power_management};
+use crate::power_management::{power_up_aux, power_up_gps, run_power_management};
+use crate::status_display::drive_display;
 
 extern crate alloc;
 
 const CONNECTIONS_MAX: usize = 1;
 const L2CAP_CHANNELS_MAX: usize = 1;
 
+static I2C0_BUS: StaticCell<embassy_sync::blocking_mutex::Mutex<NoopRawMutex, RefCell<Reverse<I2c<'static, Blocking>>>>> = StaticCell::new();
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -92,11 +103,12 @@ async fn main(spawner: Spawner) -> ! {
         .with_tx(peripherals.GPIO8)
         .into_async();
 
-    let i2c_bus0 = I2c::new(peripherals.I2C0, i2c::master::Config::default())
+    // Blocking because sh1106 does not support async
+    let i2c_bus0 = I2c::new(peripherals.I2C0, i2c::master::Config::default().with_frequency(Rate::from_khz(400)))
         .unwrap()
         .with_sda(peripherals.GPIO17)
-        .with_scl(peripherals.GPIO18)
-        .into_async();
+        .with_scl(peripherals.GPIO18).reverse();
+    let bus_ref: &'static _ = I2C0_BUS.init(embassy_sync::blocking_mutex::Mutex::new(RefCell::new(i2c_bus0)));
 
     let i2c_bus1 = I2c::new(peripherals.I2C1, i2c::master::Config::default())
         .unwrap()
@@ -104,10 +116,14 @@ async fn main(spawner: Spawner) -> ! {
         .with_scl(peripherals.GPIO41)
         .into_async();
 
+    spawner.spawn(run_power_management(i2c_bus1).unwrap());
+
+    power_up_gps().await;
+    power_up_aux().await;
+    Timer::after(Duration::from_secs(1)).await;
 
     spawner.spawn(run_gps(gps_uart).unwrap());
-    spawner.spawn(run_power_management(i2c_bus1).unwrap());
-    power_up_gps().await;
+    spawner.spawn(drive_display(&bus_ref).unwrap());
 
     loop {
         Timer::after(Duration::from_secs(1000)).await;
