@@ -1,8 +1,9 @@
+use crate::i2c::master::Error;
 use core::cell::LazyCell;
 use core::ops::DerefMut;
 use core::sync::atomic::{AtomicU8, Ordering};
 use axp2101_dd::{Axp2101Async, AxpInterface, LdoId, VoffVoltage};
-use axp2101_dd::LdoId::{Aldo1, Aldo4, Bldo2};
+use axp2101_dd::LdoId::*;
 use critical_section::Mutex;
 use embassy_futures::select::Either;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -41,6 +42,7 @@ pub async fn run_power_management(
 	// =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
 	//##################################################################################
 	pmic.battery_discharge_limit(VoffVoltage::V30).await.unwrap();
+	disable_unneeded_rails(&mut pmic).await;
 
 	loop {
 		let cmd = embassy_futures::select::select(
@@ -85,4 +87,16 @@ pub async fn power_up_gps() {
 
 pub async fn power_up_aux() {
 	PMIC_CHANNEL.send(PmicCommand::EnableAux(true)).await;
+}
+
+async fn disable_unneeded_rails(pmic: &mut Axp2101Async<AxpInterface<I2c<'static, Async>>, Error>) {
+	let unneeded = [
+		Aldo2, // IMU
+		Aldo3, // LoRa Radio
+		Bldo1, // SD card
+		Bldo2  // External header
+	];
+	for rail in unneeded {
+		pmic.set_ldo_enable(rail, false).await.unwrap();
+	}
 }
