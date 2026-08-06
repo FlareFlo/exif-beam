@@ -159,7 +159,6 @@ where
 		.unwrap();
 
 	Image::new(&if is_utc.not() {LOC_90DEG } else { UTC_90DEG }, Point::new(0, 21)).draw(display).unwrap();
-	Text::new(&heapless::format!(5; "{}%", state.bat).unwrap(), Point::new(0, 42), TXT.font(&FONT_6X13_BOLD).build()).draw(display).unwrap();
 	match state.hdop {
 		0.1..2.0 => {
 			draw_16_16("EXC", "FIX", Point::new(54,0), BoxLevel::Info, display, blink);
