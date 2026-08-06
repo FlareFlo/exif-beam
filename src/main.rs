@@ -40,7 +40,9 @@ use crate::status_display::drive_display;
 extern crate alloc;
 
 use esp_println as _; // Enable for espflash
-use esp_backtrace as _; // Enable for espflash
+use esp_backtrace as _;
+use esp_hal::uart::RxConfig;
+// Enable for espflash
 // use panic_rtt_target as _; // Enable for probe-rs
 
 const CONNECTIONS_MAX: usize = 1;
@@ -102,7 +104,7 @@ async fn main(spawner: Spawner) -> ! {
         HostResources::new();
     let _stack = trouble_host::new(ble_controller, &mut resources);
 
-    let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600)).unwrap()
+    let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600).with_rx(RxConfig::default().with_fifo_full_threshold(32))).unwrap()
         .with_rx(peripherals.GPIO9)
         .with_tx(peripherals.GPIO8)
         .into_async();

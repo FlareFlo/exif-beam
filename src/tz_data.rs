@@ -1,4 +1,5 @@
-use defmt::{error, Debug2Format};
+use core::hint::black_box;
+use defmt::{error, Debug2Format, info};
 
 pub fn get_local_offset_seconds(lat: f64, lon: f64, unix_timestamp: i64) -> Option<i64> {
 	let tz_str = trtz::find_tz(lat, lon).or_else(|| {error!("Failed to find tz from gps");  None})?;
@@ -7,6 +8,5 @@ pub fn get_local_offset_seconds(lat: f64, lon: f64, unix_timestamp: i64) -> Opti
 
 	let local_time_type = time_zone.find_local_time_type(unix_timestamp).map_err(|e|{error!("Failed to get offset {}", Debug2Format(&e)); e}).ok()?;
 
-	// 4. Return the UTC offset in seconds
 	Some(local_time_type.ut_offset() as _)
 }
