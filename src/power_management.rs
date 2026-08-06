@@ -1,7 +1,7 @@
 use core::cell::LazyCell;
 use core::ops::DerefMut;
 use core::sync::atomic::{AtomicU8, Ordering};
-use axp2101_dd::{Axp2101Async, AxpInterface, LdoId};
+use axp2101_dd::{Axp2101Async, AxpInterface, LdoId, VoffVoltage};
 use axp2101_dd::LdoId::{Aldo1, Aldo4, Bldo2};
 use critical_section::Mutex;
 use embassy_futures::select::Either;
@@ -32,6 +32,15 @@ pub async fn run_power_management(
 
 	pmic.set_ldo_voltage_mv(AUX_LDO, 3300).await.unwrap();
 	pmic.set_ldo_voltage_mv(GPS_LDO, 3300).await.unwrap();
+	//##################################################################################
+	// =/=/=/=/=/=/=/=/=/=/ WARNING WARNING WARNING =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
+	// I'm using the Samsung 18650 26J, a LIcoO2 chemistry that allows up to 2.75V under discharge.
+	// I rather not risk anything and choose conservative 3V (losing about 3-5% capacity)
+	// MAKE SURE YOUR BATTERY SUPPORTS THIS VOLTAGE OR OTHERWISE CHANGE IT!!!!!!
+	// 3.3V is probably always safe for lithium architectures, no promises though
+	// =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
+	//##################################################################################
+	pmic.battery_discharge_limit(VoffVoltage::V30).await.unwrap();
 
 	loop {
 		let cmd = embassy_futures::select::select(

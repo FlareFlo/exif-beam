@@ -102,8 +102,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 [[package]]
 name = "axp2101-dd"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7db9121d3b8b4ad38ba7b060e4e7c1362a3518b7c228cc65831b9d954e10166f"
+source = "git+https://github.com/FlareFlo/axp2101-dd.git?branch=main#84772f5e7bda1d7f52b41f1097fb25273996f130"
 dependencies = [
  "bisync",
  "device-driver",
