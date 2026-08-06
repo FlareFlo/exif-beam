@@ -11,6 +11,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, Utc};
 use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
 use core::cmp::min;
+use chrono::format::Fixed;
 use defmt::{info, Debug2Format};
 use embassy_futures::select::select;
 use embassy_futures::yield_now;
@@ -51,7 +52,6 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	display.flush().await.unwrap();
 
 	let mut state = DisplayState::default();
-	let mut offset = None;
 	loop {
 		let gps = GPS_STATE.lock().await;
 		state.sats = gps.sats;
@@ -61,11 +61,9 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 		state.time = gps.time;
 		state.hdop = gps.hdop;
 		drop(gps);
-		let dt = NaiveDateTime::new(state.date, state.time);
-		if offset.is_none() && state.date != NaiveDate::from_epoch_days(0).unwrap() {
-			offset = Some(get_local_offset_seconds(56.0, 10.0, dt.and_utc().timestamp()).unwrap());
-			let dtoffs = dt.and_utc().checked_add_signed(TimeDelta::from_std(core::time::Duration::from_secs(offset.unwrap() as _)).unwrap()).unwrap();
-			info!("{}", Debug2Format(&dtoffs));
+		if state.tz_offset.is_none() && state.lat != 0.0 {
+			let dt = NaiveDateTime::new(state.date, state.time);
+			state.tz_offset = Some(get_local_offset_seconds(state.lat, state.lon, dt.and_utc().timestamp()).unwrap());
 		}
 		state.bat = get_battery_level();
 		draw_status_display(&mut display, &state);
@@ -85,6 +83,7 @@ pub struct DisplayState {
 	pub sats: u8,
 	pub hdop: f32,
 	pub bat: u8,
+	pub tz_offset: Option<i64>,
 }
 
 impl DisplayState {
@@ -99,11 +98,12 @@ impl DisplayState {
 	}
 
 	pub fn now_utc(&self) -> DateTime<FixedOffset> {
-		DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::new(self.date, self.time), Utc).with_timezone(&FixedOffset::east_opt(0).expect("Infallible. UTC."))
+		NaiveDateTime::new(self.date, self.time).and_utc().fixed_offset()
 	}
 
 	pub fn now_local(&self) -> Option<DateTime<FixedOffset>> {
-		self.local_time
+		let dt = NaiveDateTime::new(self.date, self.time);
+		Some(dt.and_utc().fixed_offset().checked_add_signed(TimeDelta::try_seconds(self.tz_offset?).unwrap()).unwrap())
 	}
 }
 
@@ -146,6 +146,7 @@ where
 		.draw(display)
 		.unwrap();
 
+	// TODO: This somehow still prints the wrong TZ atm
 	let now = if local_instead_of_utc && let Some(time) = state.now_local() {
 		// Fall back to UTC when LOC is not available (yet)
 		local_instead_of_utc = false;
@@ -159,7 +160,7 @@ where
 		.unwrap();
 
 	Image::new(&if local_instead_of_utc {LOC_90DEG } else { UTC_90DEG }, Point::new(0, 21)).draw(display).unwrap();
-	Text::new(&heapless::format!(5; "{}%", state.bat).unwrap(), Point::new(0, 40), TXT.font(&FONT_6X13_BOLD).build()).draw(display).unwrap();
+	Text::new(&heapless::format!(5; "{}%", state.bat).unwrap(), Point::new(0, 42), TXT.font(&FONT_6X13_BOLD).build()).draw(display).unwrap();
 	match state.hdop {
 		0.1..2.0 => {
 			draw_16_16("EXC", "FIX", Point::new(54,0), BoxLevel::Info, display, blink);
