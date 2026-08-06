@@ -51,6 +51,14 @@ const CONNECTIONS_MAX: usize = 1;
 const L2CAP_CHANNELS_MAX: usize = 1;
 
 static I2C0_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
+static BLE_RESOURCES: StaticCell<
+    HostResources<
+        ExternalController<BleConnector<'static>, 1>,
+        DefaultPacketPool,
+        CONNECTIONS_MAX,
+        L2CAP_CHANNELS_MAX,
+    >,
+> = StaticCell::new();
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -100,11 +108,10 @@ async fn main(spawner: Spawner) -> ! {
     info!("Embassy initialized!");
 
     // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
-    let transport = BleConnector::new(peripherals.BT, Default::default()).unwrap();
+    let transport = BleConnector::new(peripherals.BT, esp_radio::ble::Config::default().with_max_connections(1).with_scan_duplicate_list_count(16)).unwrap();
     let ble_controller = ExternalController::<_, 1>::new(transport);
-    let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
-        HostResources::new();
-    let _stack = trouble_host::new(ble_controller, &mut resources);
+    let resources = BLE_RESOURCES.init(HostResources::new());
+    let stack = trouble_host::new(ble_controller, resources).build();
 
     let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600).with_rx(RxConfig::default().with_fifo_full_threshold(32))).unwrap()
         .with_rx(peripherals.GPIO9)
@@ -132,7 +139,7 @@ async fn main(spawner: Spawner) -> ! {
 
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
-    spawner.spawn(run_ble().unwrap());
+    spawner.spawn(run_ble(stack).unwrap());
 
     loop {
         Timer::after(Duration::from_secs(1000)).await;
