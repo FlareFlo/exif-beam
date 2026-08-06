@@ -2,7 +2,7 @@ use crate::i2c::master::Error;
 use core::cell::LazyCell;
 use core::ops::DerefMut;
 use core::sync::atomic::{AtomicU8, Ordering};
-use axp2101_dd::{Axp2101Async, AxpInterface, LdoId, VoffVoltage};
+use axp2101_dd::{Axp2101Async, AxpInterface, FastChargeCurrentLimit, LdoId, VoffVoltage};
 use axp2101_dd::LdoId::*;
 use critical_section::Mutex;
 use embassy_futures::select::Either;
@@ -42,6 +42,8 @@ pub async fn run_power_management(
 	// =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
 	//##################################################################################
 	pmic.battery_discharge_limit(VoffVoltage::V30).await.unwrap();
+	pmic.set_battery_charge_current(FastChargeCurrentLimit::Ma1000).await.unwrap();
+
 	disable_unneeded_rails(&mut pmic).await;
 
 	loop {
