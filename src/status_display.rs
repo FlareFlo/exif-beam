@@ -11,6 +11,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, Utc};
 use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
 use core::cmp::min;
+use core::ops::Not;
 use chrono::format::Fixed;
 use defmt::{info, Debug2Format};
 use embassy_futures::select::select;
@@ -147,19 +148,17 @@ where
 		.unwrap();
 
 	// TODO: This somehow still prints the wrong TZ atm
-	let now = if local_instead_of_utc && let Some(time) = state.now_local() {
-		// Fall back to UTC when LOC is not available (yet)
-		local_instead_of_utc = false;
-		time
+	let (now, is_utc) = if let Some(time) = state.now_local() {
+		(time, false)
 	} else {
-		state.now_utc()
+		(state.now_utc() , true)
 	};
 	// Clock
 	Text::with_baseline(&heapless::format!(30; " {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second()).unwrap(), Point::new(0, yoffs(2) + 1), TXT.font(&FONT_6X13_BOLD).build(), Baseline::Top)
 		.draw(display)
 		.unwrap();
 
-	Image::new(&if local_instead_of_utc {LOC_90DEG } else { UTC_90DEG }, Point::new(0, 21)).draw(display).unwrap();
+	Image::new(&if is_utc.not() {LOC_90DEG } else { UTC_90DEG }, Point::new(0, 21)).draw(display).unwrap();
 	Text::new(&heapless::format!(5; "{}%", state.bat).unwrap(), Point::new(0, 42), TXT.font(&FONT_6X13_BOLD).build()).draw(display).unwrap();
 	match state.hdop {
 		0.1..2.0 => {
