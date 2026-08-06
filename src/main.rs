@@ -14,6 +14,7 @@ mod gps;
 mod power_management;
 mod status_display;
 mod tz_data;
+pub mod ble;
 
 use embassy_sync::mutex::Mutex;
 use embedded_hal_compat::Reverse;
@@ -42,6 +43,7 @@ extern crate alloc;
 use esp_println as _; // Enable for espflash
 use esp_backtrace as _;
 use esp_hal::uart::RxConfig;
+use crate::ble::run_ble;
 // Enable for espflash
 // use panic_rtt_target as _; // Enable for probe-rs
 
@@ -130,6 +132,7 @@ async fn main(spawner: Spawner) -> ! {
 
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
+    spawner.spawn(run_ble().unwrap());
 
     loop {
         Timer::after(Duration::from_secs(1000)).await;
