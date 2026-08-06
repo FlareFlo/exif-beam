@@ -12,6 +12,7 @@ use chrono::{FixedOffset, Timelike};
 use core::fmt::Debug;
 use core::cmp::min;
 use core::ops::Not;
+use core::fmt::Write;
 use chrono::format::Fixed;
 use defmt::{info, Debug2Format};
 use embassy_futures::select::select;
@@ -33,6 +34,7 @@ use embedded_graphics::text::{Alignment, Baseline, TextStyleBuilder};
 use embedded_graphics::text::Text;
 use esp_hal::{Async, Blocking};
 use esp_hal::i2c::master::I2c;
+use heapless::String;
 use oled_async::displayrotation::DisplayRotation;
 use crate::gps::GPS_STATE;
 use crate::power_management::get_battery_level;
@@ -122,8 +124,6 @@ where
 		-neg_margin + (GPS_FONT.character_size.height as i32 - neg_margin) * i as i32
 	}
 
-	let mut local_instead_of_utc = true;
-
 	display.clear(BinaryColor::Off).unwrap();
 	let blink = state.time.second() % 2 == 1;
 
@@ -181,6 +181,7 @@ where
 	// draw_16_16("BAD", "FIX", Point::new(54,16), blink, display);
 	// draw_16_16("NO", "PPS", Point::new(54 + 16,0), blink, display);
 	// draw_16_16("BAD", "PPS", Point::new(54 + 16,16), blink, display);
+	draw_battery_status(display, Point::new(128 - 22, 0), state.bat).unwrap();
 }
 
 #[derive(PartialEq)]
@@ -266,3 +267,51 @@ const LOC_90DEG: ImageRaw<BinaryColor> = ImageRaw::new(&[
 	0x08, // ....#... (L middle)
 	0xF8, // #####... (L vertical stem)
 ], 5);
+
+fn draw_battery_status<D>(
+	display: &mut D,
+	top_left: Point,
+	percentage: u8,
+) -> Result<(), D::Error>
+where
+	D: DrawTarget<Color = BinaryColor>,
+{
+	Image::new(&BATTERY_ICON, top_left).draw(display)?;
+
+	let mut pct_str: String<4> = String::new();
+	write!(&mut pct_str, "{:3}%", percentage).unwrap();
+	// `{:3}` right-aligns with spaces so it's always 4 chars wide
+
+	let text_style = MonoTextStyleBuilder::new()
+		.font(&FONT_4X6)
+		.text_color(BinaryColor::On)
+		.build();
+
+	// Offset by (2, 2) accounts for the 1px border and 1px internal padding.
+	Text::with_baseline(
+		&pct_str,
+		top_left + Point::new(2, 2),
+		text_style,
+		Baseline::Top,
+	)
+		.draw(display)?;
+
+	Ok(())
+}
+
+// 22 pixels wide, 10 pixels high
+const BATTERY_ICON: ImageRaw<BinaryColor> = ImageRaw::new(
+	&[
+		0xFF, 0xFF, 0xF0, // Y=0:  ####################..  (Top border)
+		0x80, 0x00, 0x10, // Y=1:  #..................#..  (Top padding)
+		0x80, 0x00, 0x10, // Y=2:  #..................#..  (Text area starts)
+		0x80, 0x00, 0x1C, // Y=3:  #..................###  (Nub starts)
+		0x80, 0x00, 0x14, // Y=4:  #..................#.#  (Nub hollow center)
+		0x80, 0x00, 0x14, // Y=5:  #..................#.#  (Nub hollow center)
+		0x80, 0x00, 0x1C, // Y=6:  #..................###  (Nub ends)
+		0x80, 0x00, 0x10, // Y=7:  #..................#..  (Text area ends)
+		0x80, 0x00, 0x10, // Y=8:  #..................#..  (Bottom padding)
+		0xFF, 0xFF, 0xF0, // Y=9:  ####################..  (Bottom border)
+	],
+	22, // width
+);
