@@ -141,7 +141,8 @@ async fn main(spawner: Spawner) -> ! {
 
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
-    spawner.spawn(run_ble(stack).unwrap());
+    // Worry about this later
+    // spawner.spawn(run_ble(stack).unwrap());
 
     loop {
         Timer::after(Duration::from_secs(1000)).await;
