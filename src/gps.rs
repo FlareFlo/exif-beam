@@ -15,7 +15,7 @@ use ublox::{AnyPacketRef, proto31::Proto31};
 use ublox::cfg_val::CfgVal;
 use ublox::packets::cfg_val::{CfgLayerSet, CfgValSetBuilder};
 
-const BAUDRATE_HI: u32 = 115200;
+const BAUDRATE_HI: u32 = 19200;
 
 pub static GPS_STATE: Mutex<CriticalSectionRawMutex, GpsState> = Mutex::new(GpsState::default());
 

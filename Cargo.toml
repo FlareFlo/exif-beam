@@ -57,7 +57,7 @@ esp-radio = { git = "https://github.com/esp-rs/esp-hal", features = [
   "esp32s3",
   "unstable",
 ] }
-trouble-host = { version = "0.7.0", features = ["gatt", "security", "scan"] }
+trouble-host = { version = "0.7.0", features = ["gatt", "security", "scan", "legacy-pairing", "defmt"] }
 bt-hci = "0.9.0"
 
 # Memory stuff and such

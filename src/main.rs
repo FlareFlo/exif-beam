@@ -111,7 +111,9 @@ async fn main(spawner: Spawner) -> ! {
     let transport = BleConnector::new(peripherals.BT, esp_radio::ble::Config::default().with_max_connections(1).with_scan_duplicate_list_count(16)).unwrap();
     let ble_controller = ExternalController::<_, 1>::new(transport);
     let resources = BLE_RESOURCES.init(HostResources::new());
-    let stack = trouble_host::new(ble_controller, resources).build();
+    let stack = trouble_host::new(ble_controller, resources)
+        .set_io_capabilities(IoCapabilities::NoInputNoOutput)
+        .build();
 
     let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600).with_rx(RxConfig::default().with_fifo_full_threshold(32))).unwrap()
         .with_rx(peripherals.GPIO9)

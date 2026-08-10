@@ -3016,6 +3016,7 @@ dependencies = [
  "aes",
  "bt-hci",
  "cmac",
+ "defmt 1.1.1",
  "embassy-futures",
  "embassy-sync 0.8.0",
  "embassy-time",
