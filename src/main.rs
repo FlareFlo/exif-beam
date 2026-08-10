@@ -34,7 +34,7 @@ use trouble_host::prelude::*;
 use embedded_hal_compat::ReverseCompat;
 use esp_hal::time::Rate;
 use static_cell::StaticCell;
-use crate::gps::run_gps;
+use crate::gps::{gpx_logger, run_gps};
 use crate::power_management::{power_up_aux, power_up_gps, run_power_management};
 use crate::status_display::drive_display;
 
@@ -42,6 +42,7 @@ extern crate alloc;
 
 use esp_println as _; // Enable for espflash
 use esp_backtrace as _;
+use esp_hal::gpio::Pin;
 use esp_hal::uart::RxConfig;
 use crate::ble::run_ble;
 // Enable for espflash
@@ -105,6 +106,8 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
+    let boot_pin = peripherals.GPIO0;
+
     info!("Embassy initialized!");
 
     // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
@@ -141,6 +144,7 @@ async fn main(spawner: Spawner) -> ! {
 
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
+    spawner.spawn(gpx_logger(boot_pin.degrade(), spawner).unwrap());
     // Worry about this later
     // spawner.spawn(run_ble(stack).unwrap());
 

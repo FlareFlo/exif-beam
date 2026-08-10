@@ -1,12 +1,18 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use core::cell::RefCell;
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering::Relaxed;
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use defmt::{error, info, debug, Debug2Format};
+use embassy_executor::Spawner;
+use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
+use embedded_hal_compat::eh0_2::digital::v2::InputPin;
 use embedded_hal_compat::Reverse;
 use embedded_io_async::Write;
 use esp_hal::{uart, Async, Blocking};
+use esp_hal::gpio::{AnyPin, Input, InputConfig, Level, Pull};
 use esp_hal::i2c::master::I2c;
 use esp_hal::uart::Uart;
 use heapless::Vec;
@@ -116,5 +122,41 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 				}
 			}
 		}
+	}
+}
+
+#[embassy_executor::task]
+pub async fn gpx_logger(pin: AnyPin<'static>, spawner: Spawner) {
+	let pin = Input::new(pin, InputConfig::default().with_pull(Pull::Up));
+	let mut button = async_button::Button::new(pin, async_button::ButtonConfig::default());
+
+	static signal: AtomicBool = AtomicBool::new(false);
+
+	spawner.spawn(run_gps_logger(&signal).unwrap());
+	loop {
+		match button.update().await {
+			async_button::ButtonEvent::ShortPress { count } => {
+				info!("Button short pressed {} times!", count);
+				signal.store(true, Relaxed);
+			}
+			async_button::ButtonEvent::LongPress => {
+				info!("Button long pressed!");
+				signal.store(false, Relaxed);
+			}
+		}
+	}
+}
+
+#[embassy_executor::task(pool_size = 1)]
+async fn run_gps_logger(run: &'static AtomicBool) {
+	loop {
+		// Run
+		while run.load(Relaxed) {
+			info!("TOOD: write GPS logs somewhere idk");
+			// TODO: Init SD card and memory ringbuf, write GPX formatted logs
+			Timer::after_millis(2000).await;
+		}
+		// Cleanup. Should probaably put the GPS into PCMT mode here
+		Timer::after_millis(500).await;
 	}
 }

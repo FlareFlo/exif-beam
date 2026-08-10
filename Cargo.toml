@@ -85,6 +85,7 @@ trtz = { version = "0.1.1", default-features = false, features = ["variant-now",
 
 # Temporal Database: Embedded IANA tables
 tzdb = { version = "0.7.3", default-features = false }
+async-button = "0.2.0"
 
 [dev-dependencies]
 embedded-test = { version = "0.7.1", features = [
