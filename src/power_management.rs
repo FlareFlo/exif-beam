@@ -9,6 +9,7 @@ use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_futures::select::Either3;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_sync::pubsub::PubSubChannel;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::Input;
 use esp_hal::{i2c::master::{Config as I2cConfig, I2c}, peripherals::I2C0, Async, i2c};
@@ -44,6 +45,15 @@ pub enum PowerState {
 	VusbOnly,
 	Unknown,
 }
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum PowerButtonEvent {
+	ShortPress,
+	LongPress,
+}
+
+// Just 4 tasks can wait for their message. Add more if needed.
+pub static POWER_BUTTON_CHANNEL: PubSubChannel<CriticalSectionRawMutex, PowerButtonEvent, 4, 4, 1> = PubSubChannel::new();
 
 impl Default for PowerState {
     fn default() -> Self {
@@ -81,8 +91,8 @@ pub async fn run_power_management(
 	pmic.set_battery_charge_current(FastChargeCurrentLimit::Ma1000).await.unwrap();
 
 	// Enable hardware interrupts for power state changes so we don't have to poll aggressively
-	// IRQ1: We care about VBUS (USB plugged/unplugged) and Battery physical insertion/removal
-	let irq1_mask = IRQ1_VBUS_INSERT | IRQ1_VBUS_REMOVE | IRQ1_BAT_INSERT | IRQ1_BAT_REMOVE;
+	// IRQ1: We care about VBUS (USB plugged/unplugged), Battery physical insertion/removal, and Power Button presses
+	let irq1_mask = IRQ1_VBUS_INSERT | IRQ1_VBUS_REMOVE | IRQ1_BAT_INSERT | IRQ1_BAT_REMOVE | IRQ1_PWR_SHORT | IRQ1_PWR_LONG;
 	if let Err(e) = pmic.enable_interrupts(0x00, irq1_mask).await {
 		defmt::error!("Failed to enable IRQ1: {:?}", defmt::Debug2Format(&e));
 	}
@@ -136,7 +146,22 @@ pub async fn run_power_management(
 			}
 			Either3::Second(_) | Either3::Third(_) => {
 				if matches!(cmd, Either3::Third(_)) {
+					if let Ok((irq1,)) = pmic.get_interrupt_status1().await {
+						if irq1 & IRQ1_PWR_LONG != 0 {
+							defmt::warn!("Long power button press");
+							if let Ok(publisher) = POWER_BUTTON_CHANNEL.publisher() {
+								publisher.publish_immediate(PowerButtonEvent::LongPress);
+							}
+						} else if irq1 & IRQ1_PWR_SHORT != 0 {
+							defmt::info!("Short power button press");
+							if let Ok(publisher) = POWER_BUTTON_CHANNEL.publisher() {
+								publisher.publish_immediate(PowerButtonEvent::ShortPress);
+							}
+						}
+					}
+
 					let _ = pmic.clear_interrupt_status().await;
+					let _ = pmic.clear_interrupt_status1().await;
 					let _ = pmic.clear_interrupt_status2().await;
 				}
 
