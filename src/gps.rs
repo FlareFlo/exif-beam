@@ -23,6 +23,12 @@ use ublox::packets::cfg_val::{CfgLayerSet, CfgValSetBuilder};
 
 const BAUDRATE_HI: u32 = 19200;
 
+pub fn gps_uart_config(baudrate: u32) -> uart::Config {
+    uart::Config::default()
+        .with_baudrate(baudrate)
+        .with_rx(uart::RxConfig::default().with_fifo_full_threshold(32))
+}
+
 pub static GPS_STATE: Mutex<CriticalSectionRawMutex, GpsState> = Mutex::new(GpsState::default());
 
 #[derive(Debug)]
@@ -66,7 +72,7 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 	uart.write_all(config.as_slice()).await.unwrap();
 	uart.flush_async().await.unwrap();
 	Timer::after(Duration::from_millis(50)).await;
-	uart.apply_config(&uart::Config::default().with_baudrate(BAUDRATE_HI)).unwrap();
+	uart.apply_config(&gps_uart_config(BAUDRATE_HI)).unwrap();
 	Timer::after(Duration::from_millis(50)).await;
 
 	let mut nmea_state = nmea::Nmea::default();
@@ -90,7 +96,7 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 				Some(Ok(packet)) => {
 					match packet {
 						AnyPacketRef::Ubx(ubx_msg) => {
-							info!("Got ubx: {}", Debug2Format(&ubx_msg));
+							// info!("Got ubx: {}", Debug2Format(&ubx_msg));
 						}
 						AnyPacketRef::Rtcm(_rtcm_msg) => {}
 						AnyPacketRef::Nmea(msg) => {
@@ -107,7 +113,7 @@ pub async fn run_gps(mut uart: Uart<'static, Async>) {
 										drop(s);
 									}
 									Err(_e) => {
-										debug!("Skipping proprietary or unhandled NMEA sentence");
+										// debug!("Skipping proprietary or unhandled NMEA sentence");
 									}
 								}
 							}

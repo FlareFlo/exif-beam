@@ -36,7 +36,7 @@ use trouble_host::prelude::*;
 use embedded_hal_compat::ReverseCompat;
 use esp_hal::time::Rate;
 use static_cell::StaticCell;
-use crate::gps::{gpx_logger, run_gps};
+use crate::gps::{gpx_logger, run_gps, gps_uart_config};
 use crate::power_management::{power_up_aux, power_up_gps, run_power_management};
 use crate::status_display::drive_display;
 
@@ -122,7 +122,7 @@ async fn main(spawner: Spawner) -> ! {
         .set_io_capabilities(IoCapabilities::NoInputNoOutput)
         .build();
 
-    let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, esp_hal::uart::Config::default().with_baudrate(9600).with_rx(RxConfig::default().with_fifo_full_threshold(32))).unwrap()
+    let gps_uart = esp_hal::uart::Uart::new(peripherals.UART1, gps_uart_config(9600)).unwrap()
         .with_rx(peripherals.GPIO9)
         .with_tx(peripherals.GPIO8)
         .into_async();
