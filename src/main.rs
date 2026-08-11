@@ -15,6 +15,7 @@ mod power_management;
 mod status_display;
 mod imu;
 mod tz_data;
+mod sd;
 pub mod ble;
 mod rtc;
 
@@ -27,6 +28,7 @@ use defmt::{info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::blocking_mutex::Mutex as BlockingMutex;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
 use esp_hal::i2c::master::I2c;
@@ -39,9 +41,9 @@ use esp_hal::time::Rate;
 use static_cell::StaticCell;
 use esp_hal::spi::master::Spi;
 use esp_hal::gpio::Level;
-use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
+use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice as BlockingSpiDevice;
 use crate::gps::{gpx_logger, run_gps, gps_uart_config};
-use crate::power_management::{power_up_aux, power_up_gps, power_up_imu, run_power_management};
+use crate::power_management::{power_up_aux, power_up_gps, power_up_imu, power_up_sd, run_power_management};
 use crate::status_display::drive_display;
 use crate::imu::run_imu;
 
@@ -61,7 +63,7 @@ const L2CAP_CHANNELS_MAX: usize = 1;
 
 static I2C0_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
 static I2C1_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
-static SPI_BUS: StaticCell<Mutex<CriticalSectionRawMutex, Spi<'static, Async>>> = StaticCell::new();
+static SPI_BUS: StaticCell<BlockingMutex<CriticalSectionRawMutex, core::cell::RefCell<Spi<'static, Async>>>> = StaticCell::new();
 static BLE_RESOURCES: StaticCell<
     HostResources<
         ExternalController<BleConnector<'static>, 1>,
@@ -108,6 +110,8 @@ async fn main(spawner: Spawner) -> ! {
     let _ = peripherals.GPIO36;
     let _ = peripherals.GPIO37;
 
+    let sd_cs = Output::new(peripherals.GPIO47, Level::High, OutputConfig::default());
+
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
     // Initialize the PSRAM and also add it to the heap
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
@@ -150,17 +154,17 @@ async fn main(spawner: Spawner) -> ! {
 
     let spi_bus = Spi::new(
         peripherals.SPI2,
-        esp_hal::spi::master::Config::default().with_frequency(Rate::from_mhz(1)),
+        esp_hal::spi::master::Config::default().with_frequency(Rate::from_khz(400)),
     )
     .unwrap()
     .with_sck(peripherals.GPIO36)
     .with_mosi(peripherals.GPIO35)
     .with_miso(peripherals.GPIO37)
     .into_async();
-    let spi_bus_ref = SPI_BUS.init(Mutex::new(spi_bus));
+    let spi_bus_ref = SPI_BUS.init(BlockingMutex::new(core::cell::RefCell::new(spi_bus)));
     
     let imu_cs = Output::new(peripherals.GPIO34, Level::High, OutputConfig::default());
-    let imu_spi_device = SpiDevice::new(spi_bus_ref, imu_cs);
+    let imu_spi_device = BlockingSpiDevice::new(spi_bus_ref, imu_cs);
 
     let pmic_irq = Input::new(peripherals.GPIO40, InputConfig::default().with_pull(Pull::Up));
     spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1), pmic_irq).unwrap());
@@ -170,12 +174,20 @@ async fn main(spawner: Spawner) -> ! {
     power_up_gps().await;
     power_up_aux().await;
     power_up_imu().await;
+    power_up_sd().await;
     Timer::after(Duration::from_millis(200)).await;
+
+    // Send 74 dummy clocks (80 clocks = 10 bytes) over SPI with no CS asserted
+    // to wake up the SD card before the gpx logger task tries to mount it.
+    spi_bus_ref.lock(|spi_cell| {
+        let mut spi = spi_cell.borrow_mut();
+        let _ = embedded_hal::spi::SpiBus::write(&mut *spi, &[0xFF; 10]);
+    });
 
     spawner.spawn(run_imu(imu_spi_device).unwrap());
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
-    spawner.spawn(gpx_logger(boot_pin.degrade(), spawner).unwrap());
+    spawner.spawn(gpx_logger(boot_pin.degrade(), spi_bus_ref, sd_cs, spawner).unwrap());
     // Worry about this later
     // spawner.spawn(run_ble(stack).unwrap());
 

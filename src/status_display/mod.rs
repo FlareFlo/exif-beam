@@ -39,6 +39,7 @@ use esp_hal::i2c::master::I2c;
 use heapless::String;
 use oled_async::displayrotation::DisplayRotation;
 use crate::gps::GPS_STATE;
+use crate::sd::{SD_STATE, SdStatus};
 use crate::power_management::{get_power_state, PowerState, POWER_BUTTON_CHANNEL, PowerButtonEvent};
 use embedded_graphics::geometry::Dimensions;
 
@@ -168,6 +169,9 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 				state.tz_offset = Some(get_local_offset_seconds(state.lat, state.lon, dt.and_utc().timestamp()).unwrap());
 			}
 			state.power = get_power_state();
+            let sd = SD_STATE.lock().await;
+            state.sd_status = *sd;
+            drop(sd);
 			draw_status_display(&mut display, &state);
 			yield_now().await;
 			display.flush().await.unwrap();
@@ -175,7 +179,7 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	}
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct DisplayState {
 	time: NaiveTime,
 	date: NaiveDate,
@@ -186,6 +190,24 @@ pub struct DisplayState {
 	pub hdop: f32,
 	pub power: PowerState,
 	pub tz_offset: Option<i64>,
+    pub sd_status: SdStatus,
+}
+
+impl Default for DisplayState {
+    fn default() -> Self {
+        Self {
+            time: NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+            date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+            local_time: None,
+            lat: 0.0,
+            lon: 0.0,
+            sats: 0,
+            hdop: 99.9,
+            power: PowerState::Battery(100),
+            tz_offset: None,
+            sd_status: SdStatus::Missing,
+        }
+    }
 }
 
 impl DisplayState {
@@ -241,16 +263,28 @@ where
 		_ => "???",
 	};
 
+
+	let (sd_l1, sd_l2, sd_level, sd_blink) = match state.sd_status {
+		SdStatus::Missing => ("NO", "SD", BoxLevel::Error, false),
+		SdStatus::Error => ("ERR", "SD", BoxLevel::Error, true),
+		SdStatus::Idle => {
+			("OK", "SD", BoxLevel::Info, false)
+		},
+		SdStatus::Recording => ("REC", "SD", BoxLevel::Warn, blink),
+	};
+
 	if is_landscape {
 		// 2:1 Aspect Ratio (e.g., 128x64)
 		draw_location(display, Point::new(0, 0), state.lat, state.lon, &FONT_6X13).unwrap();
 		draw_time(display, Point::new(0, size.height as i32 - 13), &now, is_utc, &FONT_6X13_BOLD).unwrap();
 		draw_16_16(hdop_l1, "FIX", Point::new(54, 0), hdop_level, display, blink);
+        draw_16_16(sd_l1, sd_l2, Point::new(74, 0), sd_level, display, sd_blink);
 		draw_battery_status(display, Point::new(size.width as i32 - 22, 0), state.power).unwrap();
 	} else {
 		// 1:2 Aspect Ratio (e.g., 64x128)
 		draw_battery_status(display, Point::new(size.width as i32 - 22, 0), state.power).unwrap();
 		draw_16_16(hdop_l1, "FIX", Point::new(0, 0), hdop_level, display, blink);
+        draw_16_16(sd_l1, sd_l2, Point::new(18, 0), sd_level, display, sd_blink);
 		draw_time(display, Point::new(0, 18), &now, is_utc, &FONT_6X13_BOLD).unwrap();
 		// Location goes at the bottom
 		draw_location(display, Point::new(0, size.height as i32 - 26), state.lat, state.lon, &FONT_6X13).unwrap();

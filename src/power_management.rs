@@ -18,7 +18,7 @@ use crate::status_display::{DISPLAY_SIGNAL, DisplayState};
 
 const GPS_LDO: LdoId = Aldo4;
 const AUX_LDO: LdoId = Aldo1;
-
+const SD_LDO: LdoId = Bldo1;
 const IMU_LDO: LdoId = Aldo2;
 
 // AXP2101 IRQ1 Masks (VBUS, Battery insertion, Power Key)
@@ -68,6 +68,7 @@ pub enum PmicCommand {
 	EnableGps(bool),
 	EnableAux(bool),
     EnableImu(bool),
+    EnableSd(bool),
     SoftPowerOff,
 }
 
@@ -84,6 +85,7 @@ pub async fn run_power_management(
 	pmic.set_ldo_voltage_mv(AUX_LDO, 3300).await.unwrap();
 	pmic.set_ldo_voltage_mv(GPS_LDO, 3300).await.unwrap();
 	pmic.set_ldo_voltage_mv(IMU_LDO, 3300).await.unwrap();
+	pmic.set_ldo_voltage_mv(SD_LDO, 3300).await.unwrap();
 
 	//##################################################################################
 	// =/=/=/=/=/=/=/=/=/=/ WARNING WARNING WARNING =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
@@ -113,7 +115,6 @@ pub async fn run_power_management(
 
 	let unneeded = [
 		Aldo3, // LoRa Radio
-		Bldo1, // SD card
 		Bldo2  // External header
 	];
 	for rail in unneeded {
@@ -147,13 +148,20 @@ pub async fn run_power_management(
 							defmt::info!("AUX power rail state changed: {}", enable);
 						}
 					}
-                    PmicCommand::EnableImu(enable) => {
-						if let Err(e) = pmic.set_ldo_enable(IMU_LDO, enable).await {
-							defmt::error!("Failed to update IMU power: {:?}", defmt::Debug2Format(&e));
-						} else {
-							defmt::info!("IMU power rail state changed: {}", enable);
-						}
-                    }
+					PmicCommand::EnableImu(enable) => {
+                        if let Err(e) = pmic.set_ldo_enable(IMU_LDO, enable).await {
+                            defmt::error!("Failed to update IMU power: {:?}", defmt::Debug2Format(&e));
+                        } else {
+                            defmt::info!("IMU power rail state changed: {}", enable);
+                        }
+                    },
+                    PmicCommand::EnableSd(enable) => {
+                        if let Err(e) = pmic.set_ldo_enable(SD_LDO, enable).await {
+                            defmt::error!("Failed to update SD power: {:?}", defmt::Debug2Format(&e));
+                        } else {
+                            defmt::info!("SD power rail state changed: {}", enable);
+                        }
+                    },
                     PmicCommand::SoftPowerOff => {
                         defmt::info!("Executing soft power-off...");
                         let _ = pmic.power_off().await;
@@ -226,5 +234,9 @@ pub async fn power_up_aux() {
 }
 
 pub async fn power_up_imu() {
-    PMIC_CHANNEL.send(PmicCommand::EnableImu(true)).await;
+	PMIC_CHANNEL.send(PmicCommand::EnableImu(true)).await;
+}
+
+pub async fn power_up_sd() {
+	PMIC_CHANNEL.send(PmicCommand::EnableSd(true)).await;
 }
