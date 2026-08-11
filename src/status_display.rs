@@ -15,10 +15,10 @@ use core::ops::Not;
 use core::fmt::Write;
 use chrono::format::Fixed;
 use defmt::{info, Debug2Format};
-use embassy_futures::select::select;
+use embassy_futures::select::{select, select3, Either3};
 use embassy_futures::yield_now;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
 use embassy_sync::signal::Signal;
 use embedded_graphics::geometry::Size;
@@ -37,7 +37,7 @@ use esp_hal::i2c::master::I2c;
 use heapless::String;
 use oled_async::displayrotation::DisplayRotation;
 use crate::gps::GPS_STATE;
-use crate::power_management::{get_power_state, PowerState};
+use crate::power_management::{get_power_state, PowerState, POWER_BUTTON_CHANNEL, PowerButtonEvent};
 
 pub static DISPLAY_SIGNAL: Signal<CriticalSectionRawMutex, DisplayState> = Signal::new();
 
@@ -55,24 +55,50 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	display.flush().await.unwrap();
 
 	let mut state = DisplayState::default();
+	let mut power_sub = POWER_BUTTON_CHANNEL.subscriber().unwrap();
+	let mut last_interaction = Instant::now();
+	let mut is_asleep = false;
+
 	loop {
-		let gps = GPS_STATE.lock().await;
-		state.sats = gps.sats;
-		state.lat = gps.lat;
-		state.lon = gps.lon;
-		state.date = gps.date;
-		state.time = gps.time;
-		state.hdop = gps.hdop;
-		drop(gps);
-		if state.tz_offset.is_none() && state.lat != 0.0 {
-			let dt = NaiveDateTime::new(state.date, state.time);
-			state.tz_offset = Some(get_local_offset_seconds(state.lat, state.lon, dt.and_utc().timestamp()).unwrap());
+		let res = select3(
+			Timer::after(Duration::from_secs(1)),
+			DISPLAY_SIGNAL.wait(),
+			power_sub.next_message_pure()
+		).await;
+
+		if let Either3::Third(event) = res {
+			if event == PowerButtonEvent::ShortPress {
+				last_interaction = Instant::now();
+				if is_asleep {
+					display.display_on(true).await.unwrap();
+					is_asleep = false;
+				}
+			}
 		}
-		state.power = get_power_state();
-		draw_status_display(&mut display, &state);
-		yield_now().await;
-		display.flush().await.unwrap();
-		select(Timer::after(Duration::from_secs(1)), DISPLAY_SIGNAL.wait()).await;
+
+		if !is_asleep && last_interaction.elapsed() > Duration::from_secs(60) {
+			display.display_on(false).await.unwrap();
+			is_asleep = true;
+		}
+
+		if !is_asleep {
+			let gps = GPS_STATE.lock().await;
+			state.sats = gps.sats;
+			state.lat = gps.lat;
+			state.lon = gps.lon;
+			state.date = gps.date;
+			state.time = gps.time;
+			state.hdop = gps.hdop;
+			drop(gps);
+			if state.tz_offset.is_none() && state.lat != 0.0 {
+				let dt = NaiveDateTime::new(state.date, state.time);
+				state.tz_offset = Some(get_local_offset_seconds(state.lat, state.lon, dt.and_utc().timestamp()).unwrap());
+			}
+			state.power = get_power_state();
+			draw_status_display(&mut display, &state);
+			yield_now().await;
+			display.flush().await.unwrap();
+		}
 	}
 }
 
