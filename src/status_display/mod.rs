@@ -116,6 +116,29 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 						is_asleep = false;
 						IS_DISPLAY_AWAKE.store(true, Ordering::Relaxed);
 					}
+				} else if event == PowerButtonEvent::LongPress {
+					display.display_on(true).await.unwrap();
+					display.clear();
+					
+					const SHUTDOWN_ANIM: &[u8] = include_bytes!("../assets/shutdown_anim.bin");
+					const FRAME_SIZE: usize = 1024;
+					let num_frames = SHUTDOWN_ANIM.len() / FRAME_SIZE;
+					let frame_duration = Duration::from_millis(1000 / 20); // 20 FPS
+					
+					for i in 0..num_frames {
+						let frame_start = Instant::now();
+						let frame_data = &SHUTDOWN_ANIM[i * FRAME_SIZE .. (i + 1) * FRAME_SIZE];
+						let raw_image = ImageRaw::<BinaryColor>::new(frame_data, 128);
+						Image::new(&raw_image, Point::new(0, 0)).draw(&mut display).unwrap();
+						display.flush().await.unwrap();
+						
+						let elapsed = frame_start.elapsed();
+						if elapsed < frame_duration {
+							Timer::after(frame_duration - elapsed).await;
+						}
+					}
+					
+					crate::power_management::PMIC_CHANNEL.send(crate::power_management::PmicCommand::SoftPowerOff).await;
 				}
 			}
 			Either4::Fourth(rot) => {

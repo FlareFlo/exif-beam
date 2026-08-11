@@ -68,9 +68,10 @@ pub enum PmicCommand {
 	EnableGps(bool),
 	EnableAux(bool),
     EnableImu(bool),
+    SoftPowerOff,
 }
 
-static PMIC_CHANNEL: Channel<CriticalSectionRawMutex, PmicCommand, 4> = Channel::new();
+pub static PMIC_CHANNEL: Channel<CriticalSectionRawMutex, PmicCommand, 4> = Channel::new();
 #[embassy_executor::task]
 pub async fn run_power_management(
 	i2c: I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Async>>,
@@ -152,6 +153,10 @@ pub async fn run_power_management(
 						} else {
 							defmt::info!("IMU power rail state changed: {}", enable);
 						}
+                    }
+                    PmicCommand::SoftPowerOff => {
+                        defmt::info!("Executing soft power-off...");
+                        let _ = pmic.power_off().await;
                     }
 				}
 			}

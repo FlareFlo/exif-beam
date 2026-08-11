@@ -85,7 +85,8 @@ async fn main(spawner: Spawner) -> ! {
 
     // rtt_target::rtt_init_defmt!(); // Enable for probe-rs
 
-    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
+    // Saving power while still driving the display at decent framerates
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::_160MHz);
     let peripherals = esp_hal::init(config);
 
     // The following pins are used to bootstrap the chip. They are available
