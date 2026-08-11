@@ -13,6 +13,7 @@
 mod gps;
 mod power_management;
 mod status_display;
+mod imu;
 mod tz_data;
 pub mod ble;
 mod rtc;
@@ -36,15 +37,19 @@ use trouble_host::prelude::*;
 use embedded_hal_compat::ReverseCompat;
 use esp_hal::time::Rate;
 use static_cell::StaticCell;
+use esp_hal::spi::master::Spi;
+use esp_hal::gpio::Level;
+use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use crate::gps::{gpx_logger, run_gps, gps_uart_config};
-use crate::power_management::{power_up_aux, power_up_gps, run_power_management};
+use crate::power_management::{power_up_aux, power_up_gps, power_up_imu, run_power_management};
 use crate::status_display::drive_display;
+use crate::imu::run_imu;
 
 extern crate alloc;
 
 use esp_println as _; // Enable for espflash
 use esp_backtrace as _;
-use esp_hal::gpio::{Pin, Input, InputConfig, Pull};
+use esp_hal::gpio::{Pin, Input, InputConfig, Output, OutputConfig, Pull};
 use esp_hal::uart::RxConfig;
 use crate::ble::run_ble;
 use crate::rtc::drive_rtc;
@@ -56,6 +61,7 @@ const L2CAP_CHANNELS_MAX: usize = 1;
 
 static I2C0_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
 static I2C1_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
+static SPI_BUS: StaticCell<Mutex<CriticalSectionRawMutex, Spi<'static, Async>>> = StaticCell::new();
 static BLE_RESOURCES: StaticCell<
     HostResources<
         ExternalController<BleConnector<'static>, 1>,
@@ -141,6 +147,20 @@ async fn main(spawner: Spawner) -> ! {
         .into_async();
     let i2c_bus1: &'static _ = I2C1_BUS.init(Mutex::new(i2c_bus1));
 
+    let spi_bus = Spi::new(
+        peripherals.SPI2,
+        esp_hal::spi::master::Config::default().with_frequency(Rate::from_mhz(1)),
+    )
+    .unwrap()
+    .with_sck(peripherals.GPIO36)
+    .with_mosi(peripherals.GPIO35)
+    .with_miso(peripherals.GPIO37)
+    .into_async();
+    let spi_bus_ref = SPI_BUS.init(Mutex::new(spi_bus));
+    
+    let imu_cs = Output::new(peripherals.GPIO34, Level::High, OutputConfig::default());
+    let imu_spi_device = SpiDevice::new(spi_bus_ref, imu_cs);
+
     let pmic_irq = Input::new(peripherals.GPIO40, InputConfig::default().with_pull(Pull::Up));
     spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1), pmic_irq).unwrap());
     let pps_pin = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::None));
@@ -148,8 +168,10 @@ async fn main(spawner: Spawner) -> ! {
 
     power_up_gps().await;
     power_up_aux().await;
-    Timer::after(Duration::from_secs(1)).await;
+    power_up_imu().await;
+    Timer::after(Duration::from_millis(200)).await;
 
+    spawner.spawn(run_imu(imu_spi_device).unwrap());
     spawner.spawn(run_gps(gps_uart).unwrap());
     spawner.spawn(drive_display(bus_ref).unwrap());
     spawner.spawn(gpx_logger(boot_pin.degrade(), spawner).unwrap());

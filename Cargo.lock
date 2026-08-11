@@ -1691,6 +1691,7 @@ dependencies = [
  "embassy-sync 0.8.0",
  "embassy-time 0.5.1",
  "embedded-graphics",
+ "embedded-hal-async",
  "embedded-hal-compat",
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
@@ -1707,6 +1708,7 @@ dependencies = [
  "nmea",
  "oled_async",
  "pcf8563-dd",
+ "ph-qmi8658",
  "static_cell",
  "trouble-host",
  "trtz",
@@ -2371,6 +2373,15 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "ph-qmi8658"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf68aefd179891a096992d2707c2c72a3608e433b1a4faced939f6d7f4254942"
+dependencies = [
+ "embedded-hal-async",
+]
 
 [[package]]
 name = "pin-project-lite"

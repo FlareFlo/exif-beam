@@ -1,4 +1,5 @@
 use crate::tz_data::get_local_offset_seconds;
+use AtomicBool;
 use embassy_sync::mutex::Mutex;
 use display_interface_i2c::I2CInterface;
 use oled_async::displays::sh1106::Sh1106_128_64;
@@ -13,9 +14,10 @@ use core::fmt::Debug;
 use core::cmp::min;
 use core::ops::Not;
 use core::fmt::Write;
+use core::sync::atomic::Ordering;
 use chrono::format::Fixed;
 use defmt::{info, Debug2Format};
-use embassy_futures::select::{select, select3, Either3};
+use embassy_futures::select::{select, select4, Either4};
 use embassy_futures::yield_now;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex};
 use embassy_time::{Duration, Instant, Timer};
@@ -39,7 +41,9 @@ use oled_async::displayrotation::DisplayRotation;
 use crate::gps::GPS_STATE;
 use crate::power_management::{get_power_state, PowerState, POWER_BUTTON_CHANNEL, PowerButtonEvent};
 
+pub static IS_DISPLAY_AWAKE: AtomicBool = AtomicBool::new(true);
 pub static DISPLAY_SIGNAL: Signal<CriticalSectionRawMutex, DisplayState> = Signal::new();
+pub static DISPLAY_ROTATION_SIGNAL: Signal<CriticalSectionRawMutex, DisplayRotation> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<'static, Async>>) {
@@ -60,25 +64,35 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	let mut is_asleep = false;
 
 	loop {
-		let res = select3(
+		let res = select4(
 			Timer::after(Duration::from_secs(1)),
 			DISPLAY_SIGNAL.wait(),
-			power_sub.next_message_pure()
+			power_sub.next_message_pure(),
+			DISPLAY_ROTATION_SIGNAL.wait()
 		).await;
 
-		if let Either3::Third(event) = res {
-			if event == PowerButtonEvent::ShortPress {
-				last_interaction = Instant::now();
-				if is_asleep {
-					display.display_on(true).await.unwrap();
-					is_asleep = false;
+		match res {
+			Either4::Third(event) => {
+				if event == PowerButtonEvent::ShortPress {
+					last_interaction = Instant::now();
+					if is_asleep {
+						display.display_on(true).await.unwrap();
+						is_asleep = false;
+						IS_DISPLAY_AWAKE.store(true, Ordering::Relaxed);
+					}
 				}
 			}
+			Either4::Fourth(rot) => {
+				display.set_rotation(rot).await.unwrap();
+				display.clear(); // Clear display because drawing bounds might change
+			}
+			_ => {}
 		}
 
 		if !is_asleep && last_interaction.elapsed() > Duration::from_secs(60) {
 			display.display_on(false).await.unwrap();
 			is_asleep = true;
+			IS_DISPLAY_AWAKE.store(false, Ordering::Relaxed);
 		}
 
 		if !is_asleep {

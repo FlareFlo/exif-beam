@@ -19,6 +19,8 @@ use crate::status_display::{DISPLAY_SIGNAL, DisplayState};
 const GPS_LDO: LdoId = Aldo4;
 const AUX_LDO: LdoId = Aldo1;
 
+const IMU_LDO: LdoId = Aldo2;
+
 // AXP2101 IRQ1 Masks (VBUS, Battery insertion, Power Key)
 const IRQ1_VBUS_INSERT: u8 = 0x80;
 const IRQ1_VBUS_REMOVE: u8 = 0x40;
@@ -65,6 +67,7 @@ impl Default for PowerState {
 pub enum PmicCommand {
 	EnableGps(bool),
 	EnableAux(bool),
+    EnableImu(bool),
 }
 
 static PMIC_CHANNEL: Channel<CriticalSectionRawMutex, PmicCommand, 4> = Channel::new();
@@ -79,6 +82,8 @@ pub async fn run_power_management(
 
 	pmic.set_ldo_voltage_mv(AUX_LDO, 3300).await.unwrap();
 	pmic.set_ldo_voltage_mv(GPS_LDO, 3300).await.unwrap();
+	pmic.set_ldo_voltage_mv(IMU_LDO, 3300).await.unwrap();
+
 	//##################################################################################
 	// =/=/=/=/=/=/=/=/=/=/ WARNING WARNING WARNING =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/
 	// I'm using the Samsung 18650 26J, a LIcoO2 chemistry that allows up to 2.75V under discharge.
@@ -106,7 +111,6 @@ pub async fn run_power_management(
 	let _ = pmic.clear_interrupt_status2().await;
 
 	let unneeded = [
-		Aldo2, // IMU
 		Aldo3, // LoRa Radio
 		Bldo1, // SD card
 		Bldo2  // External header
@@ -142,6 +146,13 @@ pub async fn run_power_management(
 							defmt::info!("AUX power rail state changed: {}", enable);
 						}
 					}
+                    PmicCommand::EnableImu(enable) => {
+						if let Err(e) = pmic.set_ldo_enable(IMU_LDO, enable).await {
+							defmt::error!("Failed to update IMU power: {:?}", defmt::Debug2Format(&e));
+						} else {
+							defmt::info!("IMU power rail state changed: {}", enable);
+						}
+                    }
 				}
 			}
 			Either3::Second(_) | Either3::Third(_) => {
@@ -207,4 +218,8 @@ pub async fn power_up_gps() {
 
 pub async fn power_up_aux() {
 	PMIC_CHANNEL.send(PmicCommand::EnableAux(true)).await;
+}
+
+pub async fn power_up_imu() {
+    PMIC_CHANNEL.send(PmicCommand::EnableImu(true)).await;
 }
