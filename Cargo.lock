@@ -65,6 +65,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "arbitrary-int"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "993a810118f8f37e9c4411c86f1c4c940a09a7ab34b7bf2d88d06f50c553fab7"
+
+[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -178,6 +184,17 @@ name = "bisync_macros"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d21f40d350a700f6aa107e45fb26448cf489d34794b2ba4522181dc9f1173af6"
+
+[[package]]
+name = "bitbybit"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf218b839af0730012cc21856c4149789afde9ae6dc3078c7adaf311e8b76854"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "bitfield"
@@ -1115,6 +1132,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-sdmmc"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fc3ac32bcb461732f1cbc1f199ae3c09f150b18ac6f48a560bef91e0d73ca30"
+dependencies = [
+ "arbitrary-int",
+ "bitbybit",
+ "bitflags 2.13.1",
+ "byteorder",
+ "embedded-hal 1.0.0",
+ "embedded-io 0.7.1",
+ "embedded-sdmmc-types",
+ "heapless 0.9.3",
+ "hex-literal",
+ "log",
+ "thiserror",
+]
+
+[[package]]
+name = "embedded-sdmmc-types"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4234384920317421a61a221dd06dda643ee13d95d4a95532a6294b4d01a8852f"
+dependencies = [
+ "arbitrary-int",
+ "bitbybit",
+ "bitflags 2.13.1",
+ "thiserror",
+]
+
+[[package]]
 name = "embedded-storage"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1669,6 +1717,7 @@ dependencies = [
  "embedded-hal-compat",
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
+ "embedded-sdmmc",
  "embedded-test",
  "esp-alloc",
  "esp-backtrace",
@@ -1680,7 +1729,7 @@ dependencies = [
  "heapless 0.9.3",
  "nmea",
  "oled_async",
- "pcf8563",
+ "pcf8563-dd",
  "static_cell",
  "trouble-host",
  "trtz",
@@ -1929,6 +1978,12 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hex-literal"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e712f64ec3850b98572bffac52e2c6f282b29fe6c5fa6d42334b30be438d95c1"
 
 [[package]]
 name = "hkdf"
@@ -2322,12 +2377,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
-name = "pcf8563"
-version = "0.2.1"
+name = "pcf8563-dd"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "480acff70a8345211e8478b478e6184e25383f2d38812cc5e54a1b1bd182f32e"
+checksum = "7e471725925734ba8b11f52c759779992d672cea6117d11e0a21ee1d855eda24"
 dependencies = [
+ "bisync",
+ "device-driver",
  "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "thiserror",
 ]
 
 [[package]]

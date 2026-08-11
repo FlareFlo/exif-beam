@@ -3,7 +3,7 @@ use embassy_sync::mutex::Mutex;
 use core::cell::RefCell;
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
-use chrono::{DateTime, NaiveDate, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveTime, Datelike};
 use defmt::{error, info, debug, Debug2Format};
 use embassy_executor::Spawner;
 use embassy_sync::signal::Signal;
@@ -159,4 +159,25 @@ async fn run_gps_logger(run: &'static AtomicBool) {
 		// Cleanup. Should probaably put the GPS into PCMT mode here
 		Timer::after_millis(500).await;
 	}
+}
+
+pub async fn wait_for_pps_time(pps_pin: &mut Input<'_>) -> Option<chrono::NaiveDateTime> {
+    let s = GPS_STATE.lock().await;
+    let date = s.date;
+    let time = s.time;
+    drop(s);
+
+    if date.year() <= 1970 {
+        return None; // Time not yet acquired by GPS
+    }
+
+    let dt = chrono::NaiveDateTime::new(date, time);
+    // Add 1 second because PPS indicates the start of the next second
+    let upcoming_second = dt + chrono::Duration::seconds(1);
+
+    let pps_future = pps_pin.wait_for_rising_edge();
+    match embassy_time::with_timeout(Duration::from_millis(1200), pps_future).await {
+        Ok(_) => Some(upcoming_second),
+        Err(_) => None,
+    }
 }

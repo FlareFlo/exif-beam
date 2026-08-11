@@ -44,7 +44,7 @@ extern crate alloc;
 
 use esp_println as _; // Enable for espflash
 use esp_backtrace as _;
-use esp_hal::gpio::Pin;
+use esp_hal::gpio::{Pin, Input, InputConfig, Pull};
 use esp_hal::uart::RxConfig;
 use crate::ble::run_ble;
 use crate::rtc::drive_rtc;
@@ -142,7 +142,8 @@ async fn main(spawner: Spawner) -> ! {
     let i2c_bus1: &'static _ = I2C1_BUS.init(Mutex::new(i2c_bus1));
 
     spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1)).unwrap());
-    spawner.spawn(drive_rtc(I2cDevice::new(i2c_bus1)).unwrap());
+    let pps_pin = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::None));
+    spawner.spawn(drive_rtc(I2cDevice::new(i2c_bus1), pps_pin).unwrap());
 
     power_up_gps().await;
     power_up_aux().await;

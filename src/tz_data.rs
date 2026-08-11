@@ -10,3 +10,14 @@ pub fn get_local_offset_seconds(lat: f64, lon: f64, unix_timestamp: i64) -> Opti
 
 	Some(local_time_type.ut_offset() as _)
 }
+
+use chrono::{DateTime, FixedOffset};
+use crate::rtc::get_current_time;
+
+pub fn get_local_time(lat: f64, lon: f64) -> Option<DateTime<FixedOffset>> {
+    let utc_time = get_current_time()?;
+    let offset_seconds = get_local_offset_seconds(lat, lon, utc_time.and_utc().timestamp())?;
+    
+    let offset = FixedOffset::east_opt(offset_seconds as i32)?;
+    Some(DateTime::from_naive_utc_and_offset(utc_time, offset))
+}

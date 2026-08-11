@@ -78,7 +78,8 @@ nmea = {version = "0.7.0", default-features = false, features = ["GNSS", "defmt-
 axp2101-dd = { git = "https://github.com/FlareFlo/axp2101-dd.git", branch = "main" } # PMU
 oled_async = { git = "https://github.com/techmccat/sh1106.git", branch = "master"} # Display
 display-interface-i2c = "0.5"# Display driver adapter
-pcf8563 = "0.2.1" # RTC
+pcf8563-dd = "0.3.0"# RTC
+embedded-sdmmc = "0.10.0" # SDcard
 
 # Timezone stuff
 # Spatial: Drop historical borders, use grid compression
