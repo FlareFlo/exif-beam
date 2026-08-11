@@ -65,6 +65,35 @@ pub async fn drive_display(bus_ref: &'static Mutex<CriticalSectionRawMutex, I2c<
 	display.clear();
 	display.flush().await.unwrap();
 
+	// Play startup animation
+	const ANIMATION_DATA: &[u8] = include_bytes!("../assets/startup_anim.bin");
+	const FRAME_SIZE: usize = 1024;
+	const FPS: u64 = 20;
+
+	let num_frames = ANIMATION_DATA.len() / FRAME_SIZE;
+	let start_time = Instant::now();
+	let frame_duration = Duration::from_millis(1000 / FPS);
+
+	for i in 0..num_frames {
+		let frame_start = Instant::now();
+		let frame_data = &ANIMATION_DATA[i * FRAME_SIZE .. (i + 1) * FRAME_SIZE];
+		let raw_image = ImageRaw::<BinaryColor>::new(frame_data, 128);
+		Image::new(&raw_image, Point::new(0, 0)).draw(&mut display).unwrap();
+		display.flush().await.unwrap();
+		
+		let elapsed = frame_start.elapsed();
+		if elapsed < frame_duration {
+			Timer::after(frame_duration - elapsed).await;
+		} else {
+			defmt::warn!("Animation frame {} missed deadline! Took {}ms", i, elapsed.as_millis());
+		}
+	}
+	
+	let total_elapsed = start_time.elapsed();
+	defmt::info!("Startup animation finished in {}ms (Target: {}ms)", total_elapsed.as_millis(), (1000 / FPS) * num_frames as u64);
+	
+	display.clear(); // Clear before moving to status loop
+
 	let mut state = DisplayState::default();
 	let mut power_sub = POWER_BUTTON_CHANNEL.subscriber().unwrap();
 	let mut last_interaction = Instant::now();
