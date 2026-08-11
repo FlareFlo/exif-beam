@@ -141,7 +141,8 @@ async fn main(spawner: Spawner) -> ! {
         .into_async();
     let i2c_bus1: &'static _ = I2C1_BUS.init(Mutex::new(i2c_bus1));
 
-    spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1)).unwrap());
+    let pmic_irq = Input::new(peripherals.GPIO40, InputConfig::default().with_pull(Pull::Up));
+    spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1), pmic_irq).unwrap());
     let pps_pin = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::None));
     spawner.spawn(drive_rtc(I2cDevice::new(i2c_bus1), pps_pin).unwrap());
 
