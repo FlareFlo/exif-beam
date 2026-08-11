@@ -15,6 +15,7 @@ mod power_management;
 mod status_display;
 mod tz_data;
 pub mod ble;
+mod rtc;
 
 use embassy_sync::mutex::Mutex;
 use embedded_hal_compat::Reverse;
@@ -22,6 +23,7 @@ use esp_hal::{Async, Blocking};
 use core::cell::RefCell;
 use bt_hci::controller::ExternalController;
 use defmt::{info};
+use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_time::{Duration, Timer};
@@ -45,6 +47,7 @@ use esp_backtrace as _;
 use esp_hal::gpio::Pin;
 use esp_hal::uart::RxConfig;
 use crate::ble::run_ble;
+use crate::rtc::drive_rtc;
 // Enable for espflash
 // use panic_rtt_target as _; // Enable for probe-rs
 
@@ -52,6 +55,7 @@ const CONNECTIONS_MAX: usize = 1;
 const L2CAP_CHANNELS_MAX: usize = 1;
 
 static I2C0_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
+static I2C1_BUS: StaticCell<Mutex<CriticalSectionRawMutex, I2c<'static, Async>>> = StaticCell::new();
 static BLE_RESOURCES: StaticCell<
     HostResources<
         ExternalController<BleConnector<'static>, 1>,
@@ -135,8 +139,10 @@ async fn main(spawner: Spawner) -> ! {
         .with_sda(peripherals.GPIO42)
         .with_scl(peripherals.GPIO41)
         .into_async();
+    let i2c_bus1: &'static _ = I2C1_BUS.init(Mutex::new(i2c_bus1));
 
-    spawner.spawn(run_power_management(i2c_bus1).unwrap());
+    spawner.spawn(run_power_management(I2cDevice::new(i2c_bus1)).unwrap());
+    spawner.spawn(drive_rtc(I2cDevice::new(i2c_bus1)).unwrap());
 
     power_up_gps().await;
     power_up_aux().await;

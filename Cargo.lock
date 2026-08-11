@@ -1680,6 +1680,7 @@ dependencies = [
  "heapless 0.9.3",
  "nmea",
  "oled_async",
+ "pcf8563",
  "static_cell",
  "trouble-host",
  "trtz",
@@ -2319,6 +2320,15 @@ name = "pastey"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
+
+[[package]]
+name = "pcf8563"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "480acff70a8345211e8478b478e6184e25383f2d38812cc5e54a1b1bd182f32e"
+dependencies = [
+ "embedded-hal 1.0.0",
+]
 
 [[package]]
 name = "percent-encoding"
